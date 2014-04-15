@@ -4226,8 +4226,8 @@ KityMinder.registerModule( "KeyboardModule", function () {
                     break;
                 case keys.Backspace:
                 case keys.Del:
-                    this.execCommand( 'removenode' );
                     e.preventDefault();
+                    if ( this.queryCommandState( 'removenode' ) !== -1 ) this.execCommand( 'removenode' );
                     break;
 
                 case keys.Left:
@@ -7412,7 +7412,7 @@ KM.registerToolbarUI( 'saveto', function ( name ) {
 
     utils.each( KityMinder.getAllRegisteredProtocals(), function ( k ) {
         var p = KityMinder.findProtocal( k );
-        if( p.encode ){
+        if ( p.encode ) {
             var text = p.fileDescription + '（' + p.fileExtension + '）';
             options.value.push( k );
             options.items.push( text );
@@ -7436,8 +7436,9 @@ KM.registerToolbarUI( 'saveto', function ( name ) {
         var data = me.exportData( res.value );
         var p = KityMinder.findProtocal( res.value );
         var filename = me.getMinderTitle() + p.fileExtension;
+        if ( p.fileExtension === '' ) {
 
-        if ( typeof ( data ) == 'string' ) {
+        } else if ( typeof ( data ) == 'string' ) {
             var url = 'data:text/plain; utf-8,' + encodeURI( data );
             doDownload( url, filename );
         } else if ( data && data.then ) {
