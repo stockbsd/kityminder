@@ -7477,7 +7477,7 @@ KM.registerToolbarUI( 'saveto', function ( name ) {
             data.then( function ( url ) {
                 console.log( url );
                 if ( ie_ver() > 0 ) {
-                    doSave( 'application/base64', url.replace( 'image/octet-stream,', '' ), filename );
+                    //doSave( 'application/base64', url.replace( 'image/octet-stream,', '' ), filename );
                 } else {
                     doDownload( url, filename );
                 }
@@ -8248,7 +8248,7 @@ KityMinder.registerProtocal( "png", function () {
 	}
 
 	return {
-		fileDescription: 'PNG 图片',
+		fileDescription: 'PNG 图片（暂不支持IE）',
 		fileExtension: '.png',
 		encode: function ( json, km ) {
 			var domContainer = km.getPaper().container,
