@@ -6315,7 +6315,7 @@ KM.ui.define('colorpicker', {
                 "<%}%>" +
                 "<%}%>" +
                 "<%for( var i=0, label; label = items[i]; i++ ) {%>" +
-                "<li class=\"<%=itemClassName%><%if( selected == i ) {%> kmui-combobox-checked<%}%> kmui-combobox-item-<%=i%><%if( disabled[ i ] === true ) {%> kmui-combobox-item-disabled<%}%>\" data-item-index=\"<%=i%>\" unselectable=\"on\" onmousedown=\"return false\">" +
+                "<li class=\"<%=itemClassName%><%if( selected == i && enabledSelected ) {%> kmui-combobox-checked<%}%> kmui-combobox-item-<%=i%><%if( disabled[ i ] === true ) {%> kmui-combobox-item-disabled<%}%>\" data-item-index=\"<%=i%>\" unselectable=\"on\" onmousedown=\"return false\">" +
                 "<span class=\"kmui-combobox-icon\" unselectable=\"on\" onmousedown=\"return false\"></span>" +
                 "<label class=\"<%=labelClassName%>\" style=\"<%=itemStyles[ i ]%>\" unselectable=\"on\" onmousedown=\"return false\"><%=label%></label>" +
                 "</li>" +
@@ -6336,7 +6336,8 @@ KM.ui.define('colorpicker', {
                 autoRecord: true,
                 //最多记录条数
                 recordCount: 5,
-                enabledRecord:true
+                enabledRecord:true,
+                enabledSelected:true
             },
             init: function( options ){
 
@@ -6616,7 +6617,7 @@ KM.ui.define('colorpicker', {
 
                 var options = this.data("options"),
                     newStack = [];
-
+                debugger
                 if(this.data('options').enabledRecord){
                     $.each( options.recordStack, function( i, item ){
 
@@ -7405,7 +7406,8 @@ KM.registerToolbarUI( 'saveto', function ( name ) {
             itemStyles: [],
             value: [],
             autowidthitem: [],
-            enabledRecord: false
+            enabledRecord: false,
+            enabledSelected:false
         },
         $combox = null,
         comboboxWidget = null;
