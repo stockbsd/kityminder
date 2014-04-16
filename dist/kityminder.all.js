@@ -823,7 +823,7 @@ var Minder = KityMinder.Minder = kity.createClass( "KityMinder", {
         this._root.setType( "root" );
         if ( this._options.renderTo ) {
             this.renderTo( this._options.renderTo );
-            this._paper.setStyle( 'font-family', 'Arial,Microsoft YaHei,sans-serif' );
+            //this._paper.setStyle( 'font-family', 'Arial,"Microsoft YaHei",sans-serif' );
         }
     },
     _addRenderContainer: function () {
@@ -7456,11 +7456,6 @@ KM.registerToolbarUI( 'saveto', function ( name ) {
         iframe.contentDocument.open( urltype, 'replace' );
         iframe.contentDocument.writeln( d );
         iframe.contentDocument.execCommand( 'saveas', '', filename );
-        // var winname = window.open( '', '_blank', 'height=0,width=0,toolbar=no,menubar=no,scrollbars=no,resizable=on,location=no,status=no' );
-        // winname.document.open( urltype, 'replace' );
-        // winname.document.writeln( d );
-        // winname.document.execCommand( 'saveas', '', filename );
-        // winname.close();
     };
     comboboxWidget.on( 'comboboxselect', function ( evt, res ) {
         var data = me.exportData( res.value );
@@ -7660,12 +7655,12 @@ KM.registerToolbarUI( 'node', function ( name ) {
     //状态反射
     me.on( 'interactchange', function () {
         var state = 0;
-        utils.each(shortcutKeys,function(k){
-            state = me.queryCommandState(k);
-            if(state!=-1){
+        utils.each( shortcutKeys, function ( k ) {
+            state = me.queryCommandState( k );
+            if ( state != -1 ) {
                 return false;
             }
-        });
+        } );
         //设置按钮状态
         comboboxWidget.button().kmui().disabled( state == -1 ).active( state == 1 );
 
@@ -8285,7 +8280,7 @@ KityMinder.registerProtocal( "png", function () {
 			$svg.attr( {
 				width: renderBox.width,
 				height: renderBox.height,
-				style: 'font-family: Arial, "Heiti SC", "Microsoft Yahei";'
+				style: 'font-family: Arial, "Microsoft Yahei","Heiti SC";'
 			} );
 
 			// need a xml with width and height
