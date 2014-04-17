@@ -81,6 +81,10 @@ Minder.Receiver = kity.createClass('Receiver',{
             if(me.textShape.getOpacity() == 0){
                 me.textShape.setOpacity(1);
             }
+            //#46 修复在ff下定位到文字后方空格光标不移动问题
+            if(browser.gecko && /\s$/.test(text)){
+                text += "\u200b";
+            }
             me.textShape.setContent(text);
             me.setContainerStyle();
             me.minderNode.setText(text);
@@ -216,7 +220,12 @@ Minder.Receiver = kity.createClass('Receiver',{
         this.textData = [];
 
         for(var i= 0,l = text.length;i<l;i++){
-            var box = this.textShape.getExtentOfChar(i);
+            try{
+                var box = this.textShape.getExtentOfChar(i);
+            }catch(e){
+                debugger
+            }
+
             this.textData.push({
                 x:box.x + this.offset.x,
                 y:this.offset.y,
