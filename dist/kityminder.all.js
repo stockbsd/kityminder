@@ -1058,6 +1058,7 @@ function importNode( node, json, km ) {
     return node;
 }
 
+
 // 导入导出
 kity.extendClass( Minder, {
     exportData: function ( protocalName ) {
@@ -1065,6 +1066,13 @@ kity.extendClass( Minder, {
 
         json = exportNode( this.getRoot() );
         protocal = KityMinder.findProtocal( protocalName );
+
+        if(this._fire( new MinderEvent( 'beforeexport',  {
+            json:json,
+            protocalName: protocalName,
+            protocal: protocal
+        },true ) ) === true) return;
+
         if ( protocal ) {
             return protocal.encode( json, this );
         } else {
@@ -5162,11 +5170,6 @@ Minder.Receiver = kity.createClass('Receiver',{
                 me.index = 0;
                 return false;
             }
-
-            if(i == me.textData.length -1 && offset.x >= v.x){
-                me.index = me.textData.length;
-                return false;
-            }
             if(offset.x >= v.x && offset.x <= v.x + v.width){
                 if(offset.x  - v.x > v.width/2){
                     me.index = i + 1;
@@ -5178,7 +5181,12 @@ Minder.Receiver = kity.createClass('Receiver',{
                 hadChanged = true;
                 return false;
             }
+            if(i == me.textData.length -1 && offset.x >= v.x){
+                me.index = me.textData.length;
+                return false;
+            }
         });
+
         return this;
 
     },
@@ -5366,13 +5374,12 @@ Minder.Selection = kity.createClass( 'Selection', {
         clearInterval( this.timer );
         var me = this,
             state = '';
+        me.setStyle( 'display', '' );
         if(this.collapsed){
             this.timer = setInterval( function () {
                 me.setStyle( 'display', state );
                 state = state ? '' : 'none';
-            }, 300 );
-        }else{
-            me.setStyle( 'display', '' );
+            }, 400 );
         }
 
         return this;
