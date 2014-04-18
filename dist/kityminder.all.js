@@ -7743,7 +7743,7 @@ KM.registerToolbarUI( 'saveto', function ( name ) {
                 if ( p.fileExtension === '.km' ) {
                     doSave( 'application/x-javascript', data, me.getMinderTitle() );
                 } else if ( p.fileExtension === '.svg' ) {
-                    doSave( 'image/svg+xml', data, filename );
+                    //doSave( 'image/svg+xml', data, filename );
                 } else {
                     doSave( 'text/html', data, filename );
                 }
@@ -8618,7 +8618,7 @@ KityMinder.registerProtocal( "png", function () {
 
 KityMinder.registerProtocal( "svg", function () {
 	return {
-		fileDescription: 'SVG 矢量图',
+		fileDescription: 'SVG 矢量图（暂不支持IE）',
 		fileExtension: '.svg',
 		encode: function ( json, km ) {
 			// svg 含有 &nbsp; 符号导出报错 Entity 'nbsp' not defined
