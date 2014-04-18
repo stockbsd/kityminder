@@ -1,6 +1,6 @@
 /*!
  * ====================================================
- * kityminder - v1.0.0 - 2014-04-17
+ * kityminder - v1.0.0 - 2014-04-18
  * https://github.com/fex-team/kityminder
  * GitHub: https://github.com/fex-team/kityminder.git 
  * Copyright (c) 2014 f-cube @ FEX; Licensed MIT
@@ -12,7 +12,7 @@
 var KityMinder = window.KM = window.KityMinder = function () {
 	var instanceMap = {}, instanceId = 0;
 	return {
-		version: '1.1.1',
+		version: '1.1.2',
 		createMinder: function ( renderTarget, options ) {
 			options = options || {};
 			options.renderTo = Utils.isString( renderTarget ) ? document.getElementById( renderTarget ) : renderTarget;
@@ -1155,6 +1155,7 @@ kity.extendClass( Minder, {
         this._paper.on( 'click dblclick mousedown contextmenu mouseup mousemove mousewheel DOMMouseScroll touchstart touchmove touchend', this._firePharse.bind( this ) );
         if ( window ) {
             window.addEventListener( 'resize', this._firePharse.bind( this ) );
+            window.addEventListener( 'blur', this._firePharse.bind( this ) );
         }
     },
     _bindKeyboardEvents: function () {
@@ -4853,6 +4854,9 @@ KityMinder.registerModule( "TextEditModule", function () {
             'selectionclear':function(){
                 km.setStatus('normal');
                 receiver.setTextEditStatus(false).clear()
+            },
+            blur:function(){
+                receiver.clear()
             }
         }
     };
