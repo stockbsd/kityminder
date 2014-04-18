@@ -7680,7 +7680,7 @@ KM.registerToolbarUI( 'saveto', function ( name ) {
             value: [],
             autowidthitem: [],
             enabledRecord: false,
-            enabledSelected:false
+            enabledSelected: false
         },
         $combox = null,
         comboboxWidget = null;
@@ -7750,7 +7750,6 @@ KM.registerToolbarUI( 'saveto', function ( name ) {
             }
         } else if ( data && data.then ) {
             data.then( function ( url ) {
-                console.log( url );
                 if ( ie_ver() > 0 ) {
                     //doSave( 'application/base64', url.replace( 'image/octet-stream,', '' ), filename );
                 } else {
@@ -8519,6 +8518,7 @@ KityMinder.registerProtocal( "png", function () {
 	function loadImage( url, callback ) {
 		var image = new Image();
 		image.onload = callback;
+		console.log( url );
 		image.src = url;
 	}
 
@@ -8544,7 +8544,7 @@ KityMinder.registerProtocal( "png", function () {
 				ctx = canvas.getContext( '2d' ),
 				blob, DomURL, url, img, finishCallback;
 
-
+			bgUrl = bgUrl.replace( /"/g, '' );
 			renderContainer.translate( -renderBox.x, -renderBox.y );
 
 			svgXml = km.getPaper().container.innerHTML;
@@ -8590,7 +8590,6 @@ KityMinder.registerProtocal( "png", function () {
 				var url = canvas.toDataURL( 'png' );
 				return url.replace( 'image/png', 'image/octet-stream' );
 			}
-
 			loadImage( url, function () {
 				var svgImage = this;
 				loadImage( bgUrl, function () {
