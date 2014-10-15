@@ -7,6 +7,8 @@
     "trailing" : true,
     "white": false,
     "quotmark": false,
+    "browser": true,
+    "boss": true,
     "predef" : [
         "module",
         "require",
@@ -25,6 +27,10 @@
         "$",
         "KM",
         "keymap",
-        "baidu"
+        "baidu",
+        "browser",
+        "FUI",
+        "fio",
+        "Promise"
     ]
 }

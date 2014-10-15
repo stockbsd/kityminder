@@ -1,114 +1,162 @@
-KityMinder.registerModule( 'Zoom', function () {
-	var MAX_ZOOM = 2,
-		MIN_ZOOM = kity.Browser.chrome ? 1 : 0.5,
-		ZOOM_STEP = Math.sqrt( 2 );
+KityMinder.registerModule('Zoom', function() {
+    var me = this;
 
-	function zoom( minder, rate ) {
-		var paper = minder.getPaper();
-		var viewbox = paper.getViewBox();
-		var zoomValue = minder._zoomValue;
-		var w = viewbox.width,
-			h = viewbox.height,
-			x = viewbox.x,
-			y = viewbox.y;
-		var ww = w * rate,
-			hh = h * rate,
-			xx = x + ( w - ww ) / 2,
-			yy = y + ( h - hh ) / 2;
-		var animator = new kity.Animator( {
-			beginValue: viewbox,
-			finishValue: {
-				width: ww,
-				height: hh,
-				x: xx,
-				y: yy
-			},
-			setter: function ( target, value ) {
-				target.setViewBox( value.x, value.y, value.width, value.height );
-			}
-		} );
+    var timeline;
 
-		animator.start( paper, 500, 'ease' );
-		minder._zoomValue = zoomValue *= rate;
-	}
+    me.setDefaultOptions('zoom', [10, 20, 30, 50, 80, 100, 120, 150, 200]);
 
-	var ZoomInCommand = kity.createClass( 'ZoomInCommand', {
-		base: Command,
-		execute: function ( minder ) {
-			if ( !this.queryState( minder ) ) {
-				zoom( minder, 1 / ZOOM_STEP );
-			}
-		},
-		queryState: function ( minder ) {
-			return ( minder._zoomValue > 1 / MAX_ZOOM ) ? 0 : -1;
-		},
-        enableReadOnly : false
-	} );
+    function setTextRendering() {
+        var value = me._zoomValue >= 100 ? 'optimize-speed' : 'geometricPrecision';
+        me.getRenderContainer().setAttr('text-rendering', value);
+    }
 
-	var ZoomOutCommand = kity.createClass( 'ZoomOutCommand', {
-		base: Command,
-		execute: function ( minder ) {
-			if ( !this.queryState( minder ) ) {
-				zoom( minder, ZOOM_STEP );
-			}
-		},
-		queryState: function ( minder ) {
-			return ( minder._zoomValue < 1 / MIN_ZOOM ) ? 0 : -1;
-		},
-        enableReadOnly : false
-	} );
+    function fixPaperCTM(paper) {
+        var node = paper.shapeNode;
+        var ctm = node.getCTM();
+        var matrix = new kity.Matrix(ctm.a, ctm.b, ctm.c, ctm.d, (ctm.e | 0) + 0.5, (ctm.f | 0) + 0.5);
+        node.setAttribute('transform', 'matrix(' + matrix.toString() + ')');
+    }
 
-	return {
-		commands: {
-			'zoom-in': ZoomInCommand,
-			'zoom-out': ZoomOutCommand
-		},
+    kity.extendClass(Minder, {
+        zoom: function(value) {
+            var paper = this.getPaper();
+            var viewport = paper.getViewPort();
+            viewport.zoom = value / 100;
+            viewport.center = {
+                x: viewport.center.x,
+                y: viewport.center.y
+            };
+            paper.setViewPort(viewport);
+            if (value == 100) fixPaperCTM(paper);
+        },
+        getZoomValue: function() {
+            return this._zoomValue;
+        }
+    });
 
+    function zoomMinder(minder, value) {
+        var paper = minder.getPaper();
+        var viewport = paper.getViewPort();
 
-		events: {
-			'normal.keydown': function ( e ) {
-				var me = this;
-				var originEvent = e.originEvent;
-				var keyCode = originEvent.keyCode || originEvent.which;
-				if ( keymap[ '=' ] == keyCode ) {
-					me.execCommand( 'zoom-in' );
-				}
-				if ( keymap[ '-' ] == keyCode ) {
-					me.execCommand( 'zoom-out' );
+        if (!value) return;
 
-				}
-			},
-			'ready': function () {
-				this._zoomValue = 1;
-			},
-			'normal.mousewheel readonly.mousewheel': function ( e ) {
-				if ( !e.originEvent.ctrlKey ) return;
-				var delta = e.originEvent.wheelDelta;
-				var me = this;
+        setTextRendering();
 
-				if ( !kity.Browser.mac ) {
-					delta = -delta;
-				}
+        if (minder.getRoot().getComplex() > 200) {
+            minder._zoomValue = value;
+            minder.zoom(value);
+            minder.fire('viewchange');
+        } else {
+            var animator = new kity.Animator({
+                beginValue: minder._zoomValue,
+                finishValue: value,
+                setter: function(target, value) {
+                    target.zoom(value);
+                }
+            });
+            minder._zoomValue = value;
+            if (timeline) {
+                timeline.pause();
+            }
+            timeline = animator.start(minder, 300, 'easeInOutSine');
+            timeline.on('finish', function() {
+                minder.fire('viewchange');
+            });
+        }
+        minder.fire('zoom', { zoom: value });
+    }
 
-				// 稀释
-				if ( Math.abs( delta ) > 100 ) {
-					clearTimeout( this._wheelZoomTimeout );
-				} else {
-					return;
-				}
+    var ZoomCommand = kity.createClass('Zoom', {
+        base: Command,
+        execute: zoomMinder,
+        queryValue: function(minder) {
+            return minder._zoomValue;
+        }
+    });
 
-				this._wheelZoomTimeout = setTimeout( function () {
-					var value;
-					var lastValue = me.getPaper()._zoom || 1;
-					if ( delta < 0 ) {
-						me.execCommand( 'zoom-in' );
-					} else if ( delta > 0 ) {
-						me.execCommand( 'zoom-out' );
-					}
-				}, 100 );
+    var ZoomInCommand = kity.createClass('ZoomInCommand', {
+        base: Command,
+        execute: function(minder) {
+            zoomMinder(minder, this.nextValue(minder));
+        },
+        queryState: function(minder) {
+            return +!this.nextValue(minder);
+        },
+        nextValue: function(minder) {
+            var stack = minder.getOptions('zoom'),
+                i;
+            for (i = 0; i < stack.length; i++) {
+                if (stack[i] > minder._zoomValue) return stack[i];
+            }
+            return 0;
+        },
+        enableReadOnly: true
+    });
 
-				e.originEvent.preventDefault();
-			}
-		}
-	};
-} );
+    var ZoomOutCommand = kity.createClass('ZoomOutCommand', {
+        base: Command,
+        execute: function(minder) {
+            zoomMinder(minder, this.nextValue(minder));
+        },
+        queryState: function(minder) {
+            return +!this.nextValue(minder);
+        },
+        nextValue: function(minder) {
+            var stack = minder.getOptions('zoom'),
+                i;
+            for (i = stack.length - 1; i >= 0; i--) {
+                if (stack[i] < minder._zoomValue) return stack[i];
+            }
+            return 0;
+        },
+        enableReadOnly: true
+    });
+
+    return {
+        init: function() {
+            this._zoomValue = 100;
+            setTextRendering();
+        },
+        commands: {
+            'zoom-in': ZoomInCommand,
+            'zoom-out': ZoomOutCommand,
+            'zoom': ZoomCommand
+        },
+        events: {
+            'normal.mousewheel readonly.mousewheel': function(e) {
+                if (!e.originEvent.ctrlKey && !e.originEvent.metaKey) return;
+
+                var delta = e.originEvent.wheelDelta;
+                var me = this;
+
+                if (!kity.Browser.mac) {
+                    delta = -delta;
+                }
+
+                // 稀释
+                if (Math.abs(delta) > 100) {
+                    clearTimeout(this._wheelZoomTimeout);
+                } else {
+                    return;
+                }
+
+                this._wheelZoomTimeout = setTimeout(function() {
+                    var value;
+                    var lastValue = me.getPaper()._zoom || 1;
+                    if (delta < 0) {
+                        me.execCommand('zoom-in');
+                    } else if (delta > 0) {
+                        me.execCommand('zoom-out');
+                    }
+                }, 100);
+
+                e.originEvent.preventDefault();
+            }
+        },
+
+        commandShortcutKeys: {
+            'zoom-in': 'ctrl+=',
+            'zoom-out': 'ctrl+-'
+        }
+    };
+});

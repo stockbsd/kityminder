@@ -1,350 +1,351 @@
 //接收者
-Minder.Receiver = kity.createClass('Receiver',{
-    clear : function(){
+Minder.Receiver = kity.createClass('Receiver', {
+    clear: function() {
         this.container.innerHTML = '';
-        this.selection && this.selection.setHide();
-        this.range && this.range.nativeSel.removeAllRanges();
+        if (this.selection) {
+            this.selection.setHide();
+        }
+        if (this.range) {
+            this.range.clear();
+        }
         this.index = 0;
-        this.inputLength = 0;
+
+
         return this;
     },
-    setTextEditStatus : function(status){
-        this.textEditStatus = status || false;
-        return this;
-    },
-    isTextEditStatus:function(){
-        return this.textEditStatus;
-    },
-    constructor : function(km){
+    constructor: function(km,sel,range) {
+        //初始化接收者
         this.setKityMinder(km);
-        this.textEditStatus = false;
+
+        //创建接收者容器
         var _div = document.createElement('div');
-        _div.setAttribute('contenteditable',true);
+        _div.setAttribute('contenteditable', true);
         _div.className = 'km_receiver';
-        this.container = document.body.insertBefore(_div,document.body.firstChild);
-        utils.addCssRule('km_receiver_css',' .km_receiver{position:absolute;padding:0;margin:0;word-wrap:break-word;clip:rect(1em 1em 1em 1em);}');//
-        this.km.on('textedit.beforekeyup textedit.keydown textedit.paste', utils.proxy(this.keyboardEvents,this));
-        this.timer = null;
+        this.container = _div;
+        utils.addCssRule('km_receiver_css',
+            ' .km_receiver{white-space:nowrap;position:absolute;padding:0;margin:0;word-wrap:break-word;'
+                + (/\?debug#?/.test(location.href)?'':'clip:rect(1em 1em 1em 1em);'));
+
         this.index = 0;
+        this.selection = sel;
+        this.range = range;
+
+        this.range.container = _div;
     },
-    setRange : function(range,index){
+    setRange: function(range, index) {
 
         this.index = index || this.index;
 
-        var text = this.container.firstChild;
         this.range = range;
-        range.setStart(text || this.container, this.index).collapse(true);
+
+
+        range.setStartOffset(this.index);
+        range.collapse(true);
         var me = this;
-        setTimeout(function(){
+
+        setTimeout(function() {
             me.container.focus();
-            range.select()
+            range.select();
         });
         return this;
     },
-    setTextShape:function(textShape){
-        if(!textShape){
-            textShape = new kity.Text();
-        }
-        this.textShape = textShape;
-        this.container.innerHTML = textShape.getContent();
+    setTextGroup: function(textGroup) {
+        this.textGroup = textGroup;
         return this;
     },
-    setTextShapeSize:function(size){
-        this.textShape.setSize(size);
-        return this;
-    },
-    getTextShapeHeight:function(){
-        return this.textShape.getRenderBox().height;
-    },
-    appendTextShapeToPaper:function(paper){
-        paper.addShape(this.textShape);
-        return this;
-    },
-    setKityMinder:function(km){
+
+    setKityMinder: function(km) {
         this.km = km;
         return this;
     },
-    setMinderNode:function(node){
-        this.minderNode = node;
+
+    updateByMinderNode:function(node){
+        this.setMinderNode(node);
+        //追加selection到节点
+        this._addSelection();
+        //更新minderNode下的textGroup
+        this.setTextGroup(node.getTextGroup());
+        //更新接受容器的样式
+        this.setContainerStyle();
+        //更新textOffsetData数据
+        this.updateTextOffsetData();
+        //更新选取高度
+        this.setSelectionHeight();
+        //更新接收容器内容
+        this.setContainerTxt();
         return this;
     },
-    keyboardEvents : function(e){
-
-        clearTimeout(this.timer);
-        var me = this;
-        var orgEvt = e.originEvent;
-        var keyCode = orgEvt.keyCode;
-        var keys = KityMinder.keymap;
-        function setTextToContainer(){
-            var text = me.container.textContent.replace(/[\u200b\t\r\n]/g,'');
-
-            if(me.textShape.getOpacity() == 0){
-                me.textShape.setOpacity(1);
-            }
-            //#46 修复在ff下定位到文字后方空格光标不移动问题
-            if(browser.gecko && /\s$/.test(text)){
-                text += "\u200b";
-            }
-            me.textShape.setContent(text);
-            me.setContainerStyle();
-            me.minderNode.setText(text);
-            if(text.length == 0){
-                me.textShape.setContent('a');
-                me.textShape.setOpacity(0);
-            }
-            me.km.updateLayout(me.minderNode);
-            me.setBaseOffset();
-            me.updateTextData();
-
-            me.updateIndex();
-            me.updateSelection();
-
-            me.timer = setTimeout(function(){
-                me.selection.setShow()
-            },500);
-        }
-        switch(e.type){
-
-            case 'keydown':
-                switch ( e.originEvent.keyCode ) {
-                    case keys.Enter:
-                    case keys.Tab:
-                        this.selection.setHide();
-                        this.clear().setTextEditStatus(false);
-                        this.km.fire('contentchange');
-                        this.km.setStatus('normal');
-                        e.preventDefault();
-                        break;
-                }
-
-                if ( e.originEvent.ctrlKey ||  e.originEvent.metaKey ){
-
-                    //粘贴
-                    if(keyCode == keymap.v){
-
-                        setTimeout(function(){
-                            me.range.updateNativeRange().insertNode($('<span>$$_kityminder_bookmark_$$</span>')[0]);
-                            me.container.innerHTML = me.container.textContent.replace(/[\u200b\t\r\n]/g,'');
-                            var index = me.container.textContent.indexOf('$$_kityminder_bookmark_$$');
-                            me.container.textContent = me.container.textContent.replace('$$_kityminder_bookmark_$$','');
-                            me.range.setStart(me.container.firstChild,index).collapse(true).select();
-                            setTextToContainer()
-                        },100);
-                    }
-                    //剪切
-                    if(keyCode == keymap.x){
-                        setTimeout(function(){
-                            setTextToContainer()
-                        },100);
-                    }
-                    return;
-                }
-                break;
-            case 'beforekeyup':
-
-
-                switch(keyCode){
-                    case keymap.Enter:
-                    case keymap.Tab:
-                        if(this.keydownNode === this.minderNode){
-                            this.rollbackStatus();
-                            this.setTextEditStatus(false);
-                            this.clear();
-                        }
-                        e.preventDefault();
-                        return;
-                    case keymap.Shift:
-                    case keymap.Control:
-                    case keymap.Alt:
-                    case keymap.Cmd:
-                        return;
-
-                }
-
-                setTextToContainer();
-                return true;
+    setMinderNode: function(node) {
+        this.minderNode = node;
+        this.selection.setMinderNode(node);
+        return this;
+    },
+    _addSelection:function(){
+        if (this.selection.container){
+            this.selection.remove();
         }
 
-
+        this.minderNode.getRenderContainer().addShape(this.selection);
+        return this;
+    },
+    getMinderNode:function(){
+        return this.minderNode;
+    },
+    
+    updateIndex: function() {
+        this.index = this.range.getStartOffset();
+        return this;
     },
 
-    updateIndex:function(){
-        this.index = this.range.getStart().startOffset;
-    },
-    updateTextData : function(){
-        this.textShape.textData =  this.getTextOffsetData();
-    },
-    setSelection : function(selection){
+    setSelection: function(selection) {
         this.selection = selection;
         return this;
     },
-    updateSelection : function(){
-        this.selection.setShowHold();
-        this.selection.bringTop();
-        //更新模拟选区的范围
-        this.selection.setStartOffset(this.index).collapse(true);
-        if(this.index == this.textData.length){
-            if(this.index == 0){
-                this.selection.setPosition(this.getBaseOffset())
-            }else{
-                this.selection.setPosition({
-                    x : this.textData[this.index-1].x + this.textData[this.index-1].width,
-                    y : this.textData[this.index-1].y
-                })
-            }
-
-
-        }else{
-            this.selection.setPosition(this.textData[this.index])
-        }
+    updateSelection: function(offset) {
+        this.selection.update(this.textData,offset);
         return this;
     },
-    getBaseOffset:function(){
-        return this.textShape.getRenderBox('top');
+    getOffsetByIndex:function(index){
+        return utils.getValueByIndex(this.textData, index !== undefined ? index : this.index);
     },
-    setBaseOffset :function(){
-        this.offset = this.textShape.getRenderBox('top');
-        return this;
+    getBaseOffset: function() {
+        var offset = this.textGroup.getRenderBox('screen');
+        return offset;
     },
-    setContainerStyle : function(){
-        var textShapeBox = this.textShape.getRenderBox();
+    setContainerStyle: function() {
+        var textGroupBox = this.getBaseOffset();
+        this.container.style.cssText = ';left:' + (browser.ipad ? '-' : '') +
+            textGroupBox.x + 'px;top:' + (textGroupBox.y + (/\?debug#?/.test(location.href)?this.textGroup.getItems().length * this.getlineHeight():0)) +
+            'px;width:' + textGroupBox.width + 'px;height:' + textGroupBox.height + 'px;';
 
-        this.container.style.cssText =  ";left:" + this.offset.x
-            + 'px;top:' + (this.offset.y+textShapeBox.height)
-            + 'px;width:' + textShapeBox.width
-            + 'px;height:' + textShapeBox.height + 'px;';
         return this;
     },
-    getTextOffsetData:function(){
-        var text = this.textShape.getContent();
+    updateTextOffsetData: function() {
+        var me = this;
+
+        var fontHeight = this.minderNode.getData('font-size') || this.minderNode.getStyle('font-size');
+        var lineHeight = this.minderNode.getStyle('line-height') * fontHeight;
+
+        var offsetHeight = (me.textGroup.getShapes().length * lineHeight - (lineHeight - fontHeight)) / 2;
+
+        var box;
         this.textData = [];
 
-        for(var i= 0,l = text.length;i<l;i++){
-            try{
-                var box = this.textShape.getExtentOfChar(i);
-            }catch(e){
-                debugger
-            }
+        me.textGroup.eachItem(function(index,textShape){
+            me.textData[index] = [];
+            var currentLineTop = index * lineHeight + 1;
+            var text = textShape.getContent();
 
-            this.textData.push({
-                x:box.x + this.offset.x,
-                y:this.offset.y,
-                width:box.width,
-                height:box.height
-            })
-        }
-        return this;
-    },
-    setCurrentIndex:function(offset){
-        var me = this;
-        this.getTextOffsetData();
-        var hadChanged = false;
-        utils.each(this.textData,function(i,v){
-            //点击开始之前
-            if(i == 0 && offset.x <= v.x){
-                me.index = 0;
-                return false;
-            }
-            if(offset.x >= v.x && offset.x <= v.x + v.width){
-                if(offset.x  - v.x > v.width/2){
-                    me.index = i + 1;
-
-                }else {
-                    me.index = i
-
+            for (var i = 0, l = text.length; i < l; i++) {
+                try {
+                    box = textShape.getExtentOfChar(i);
+                } catch (e) {
+                    console.log(e);
                 }
-                hadChanged = true;
-                return false;
+                me.textData[index].push({
+                    x: box.x ,
+                    y: currentLineTop - offsetHeight,
+                    width: box.width,
+                    height: box.height
+                });
             }
-            if(i == me.textData.length -1 && offset.x >= v.x){
-                me.index = me.textData.length;
-                return false;
-            }
-        });
-
-        return this;
-
-    },
-    setSelectionHeight:function(){
-        this.selection.setHeight(this.getTextShapeHeight());
-        return this;
-    },
-
-    updateSelectionByMousePosition:function(offset,dir){
-
-        var me = this;
-        utils.each(this.textData,function(i,v){
-            //点击开始之前
-            if(i == 0 && offset.x <= v.x){
-                me.selection.setStartOffset(0);
-                return false;
-            }
-
-            if(i == me.textData.length -1 && offset.x >= v.x){
-                me.selection.setEndOffset(me.textData.length);
-                return false;
-            }
-            if(offset.x >= v.x && offset.x <= v.x + v.width){
-
-                if(me.index == i){
-                    if(i == 0){
-                        me.selection.setStartOffset(i)
-                    }
-                    if(offset.x <= v.x + v.width/2){
-                        me.selection.collapse()
-                    }else {
-                        me.selection.setEndOffset(i + (me.selection.endOffset > i || dir == 1 ? 1 : 0))
-                    }
-
-                }else if(i > me.index){
-                    me.selection.setStartOffset(me.index);
-                    me.selection.setEndOffset(i + 1)
-                }else{
-                    if(dir == 1){
-                        me.selection.setStartOffset(i + (offset.x >= v.x + v.width/2 ? 1 : 0));
-                    }else{
-                        me.selection.setStartOffset(i);
-                    }
-
-                    me.selection.setEndOffset(me.index)
-                }
-
-                return false;
+            if(text.length === 0){
+                me.textData[index].push({
+                    x: 0,
+                    y: currentLineTop - offsetHeight,
+                    width: 0,
+                    height:lineHeight
+                });
             }
         });
         return this;
     },
-    updateSelectionShow:function(){
-        var startOffset = this.textData[this.selection.startOffset],
-            endOffset = this.textData[this.selection.endOffset],
-            width = 0 ;
-        if(this.selection.collapsed){
-            this.selection.updateShow(startOffset||this.textData[this.textData.length-1],0);
-            return this;
-        }
-        if(!endOffset){
-            var lastOffset = this.textData[this.textData.length -1];
-            width = lastOffset.x - startOffset.x + lastOffset.width;
+    getlineHeight:function(){
+        return this.minderNode.getStyle('line-height') * (this.minderNode.getData('font-size') || this.minderNode.getStyle('font-size'));
+    },
+    updateIndexByMouse : function(offset) {
+
+        var me = this;
+        //更新文本字符坐标
+        me.updateTextOffsetData();
+
+        this.index = 0;
+
+        var lineHeight = this.getlineHeight();
+
+
+        utils.each(this.textData,function(l,arr){
+
+            var first = arr[0];
+
+            //确定行号
+            if(first.y <= offset.y && first.y + lineHeight >= offset.y){
+
+                utils.each(arr,function(i,v){
+                    //点击开始之前
+                    if (i === 0 && offset.x <= v.x) {
+
+                        return false;
+                    }
+                    if (offset.x >= v.x && offset.x <= v.x + v.width) {
+                        if (offset.x - v.x > v.width / 2) {
+                            me.index += i + 1;
+                        } else {
+                            me.index += i;
+                        }
+                        return false;
+                    }
+                    if (i == arr.length - 1 && offset.x >= v.x) {
+
+                        me.index += (arr.length == 1 && arr[0].width === 0 ? 0 : arr.length);
+                        return false;
+                    }
+                });
+                return false;
+            }else{
+
+                me.index += arr.length + (arr.length == 1 && arr[0].width === 0 ? 0 : 1);
+                return;
+            }
+
+        });
+
+        this.selection.setStartOffset(this.index).collapse(true);
+
+        return this;
+
+    },
+    setSelectionHeight: function() {
+
+        this.selection.setHeight((this.minderNode.getData('font-size') || this.minderNode.getStyle('font-size')) * 1);
+        return this;
+    },
+    updateSelectionByMousePosition: function(offset) {
+
+        var me = this;
+        var result = 0;
+        var lineHeight =  this.getlineHeight();
+        utils.each(this.textData,function(l,arr){
+            var first = arr[0];
+            //确定行号
+
+            if(first.y <= offset.y && first.y  + lineHeight >= offset.y){
+
+                utils.each(arr,function(i,v){
+                    //点击开始之前
+                    if (i === 0 && offset.x <= v.x) {
+                        return false;
+                    }
+                    if (offset.x >= v.x && offset.x <= v.x + v.width) {
+
+                        result += i;
+                        if (offset.x - v.x > v.width / 2) {
+                            result += 1;
+                        }
+
+                        return false;
+                    }
+                    if (i == arr.length - 1 && offset.x >= v.x) {
+
+                        result += (arr.length == 1 && arr[0].width === 0 ? 0 : arr.length);
+
+                        return false;
+                    }
+                });
+
+                return false;
+            }else{
+
+                if(first.y > offset.y && l === 0){
+                    result = 0;
+                    return false;
+                }else if(l == me.textData.length - 1 && first.y  + lineHeight < offset.y){
+                    result += arr.length + 1;
+                    return false;
+                }
+                result += arr.length + (arr.length == 1 && arr[0].width === 0 ? 0 : 1);
+                return;
+            }
+
+        });
+        if(result < me.index){
+            this.selection.setStartOffset(result);
+            this.selection.setEndOffset(me.index);
+
+        }else if(result == me.index){
+
+            this.selection.setStartOffset(result).collapse(true);
         }else{
-            width = endOffset.x - startOffset.x;
+            this.selection.setStartOffset(me.index);
+            this.selection.setEndOffset(result);
         }
+        return this;
+    },
 
-        this.selection.updateShow(startOffset,width);
+    updateRange: function() {
+        this.range.update();
         return this;
     },
-    updateRange:function(range){
-        var node = this.container.firstChild;
-        range.setStart(node,this.selection.startOffset);
-        range.setEnd(node,this.selection.endOffset);
-        range.select();
+    updateContainerRangeBySel:function(){
+        var me = this;
+        this.range.setStartOffset(this.selection.startOffset);
+        this.range.setEndOffset(this.selection.endOffset);
+
+        if(browser.gecko){
+            this.container.focus();
+            setTimeout(function(){
+                me.range.select();
+            });
+        }else{
+            this.range.select();
+        }
         return this;
     },
-    setIndex:function(index){
+    updateSelectionByRange:function(){
+        this.selection.setStartOffset(this.range.getStartOffset());
+        this.selection.setEndOffset(this.range.getEndOffset());
+        return this;
+    },
+    setIndex: function(index) {
         this.index = index;
-        return this
-    },
-    setContainerTxt:function(txt){
-        this.container.textContent = txt;
         return this;
+    },
+    setContainerTxt: function(txt) {
+
+        if(txt){
+            txt = txt.replace(/[\n]/g,'<br\/>');
+        }else{
+            txt = '';
+            this.textGroup.eachItem(function(i,item){
+                txt += item.getContent() + '<br/>';
+            });
+
+        }
+        this.container.innerHTML = txt;
+        return this;
+    },
+    setReady:function(){
+        this._ready = true;
+    },
+    clearReady:function(){
+        this._ready = false;
+    },
+    isReady:function(){
+        return this._ready;
+    },
+    focus:function(){
+        this.container.focus();
+    },
+    getTxtOfContainer:function(){
+        var result = '',cont = this.container;
+        utils.each(cont.childNodes,function(i,n){
+            if(n.nodeType == 3){
+                result += n.nodeValue.replace(/[\u200b]/g, '');
+            }else{
+                if(n !== cont.lastChild)
+                    result += '\n';
+            }
+        });
+        return result;
     }
 });

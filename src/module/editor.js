@@ -1,204 +1,338 @@
-KityMinder.registerModule( "TextEditModule", function () {
+/* global Renderer: true */
+
+KityMinder.registerModule('TextEditModule', function() {
     var km = this;
     var sel = new Minder.Selection();
-    var receiver = new Minder.Receiver(this);
     var range = new Minder.Range();
+    var receiver = new Minder.Receiver(this,sel,range);
+    var keyboarder = new Minder.keyboarder(receiver);
 
     this.receiver = receiver;
 
+    //鼠标被点击，并未太抬起时为真
     var mouseDownStatus = false;
 
-    var oneTime = 0;
+    var dblclickEvent = false;
+    //当前是否有选区存在
+    var selectionReadyShow = false;
 
-    var lastEvtPosition,dir = 1;
+    var mousedownNode,mouseupTimer,mousedownTimer;
+
+    var lastMinderNode;
+    function inputStatusReady(node){
+        if (node && km.isSingleSelect() && node.isSelected()) {
+
+            node.getTextGroup().setStyle('cursor','default');
+
+            var color = node.getStyle('text-selection-color');
+
+            //准备输入状态
+
+            receiver.updateByMinderNode(node);
+
+            sel.setHide()
+                .setStartOffset(0)
+                .setEndOffset(receiver.getTxtOfContainer().length)
+                .setColor(color);
 
 
+            receiver.updateContainerRangeBySel();
 
-    km.isTextEditStatus = function(){
-        return km.receiver.isTextEditStatus();
+            if(browser.ie ){
+                var timer = setInterval(function(){
+                    var nativeRange = range.nativeSel.getRangeAt(0);
+                    if(!nativeRange || nativeRange.collapsed){
+                        range.select();
+                    }else {
+                        clearInterval(timer);
+                    }
+                });
+            }
+
+
+            km.setStatus('inputready');
+
+        }
+
+    }
+
+    km.textEditNode = function(node){
+        inputStatusReady(node);
+        km.setStatus('textedit');
+        receiver.updateSelection();
     };
-
-    var selectionByClick = false;
-
     return {
-        //插入光标
-        "init":function(){
-            this.getPaper().addShape(sel);
-        },
-        "events": {
-            'normal.beforemousedown textedit.beforemousedown':function(e){
-                if(e.isRightMB()){
-                    e.stopPropagationImmediately();
+        'events': {
+            'ready': function() {
+                document.body.appendChild(receiver.container);
+            },
+
+            'normal.beforemousedown textedit.beforemousedown inputready.beforemousedown': function(e) {
+                //右键直接退出
+                if (e.isRightMB()) {
+                    if (!e.getTargetNode()) this.setStatus('normal');
                     return;
                 }
+
+
+                mouseDownStatus = true;
+
+                selectionReadyShow = sel.isShow();
+
                 sel.setHide();
+
                 var node = e.getTargetNode();
-                if(!node){
+
+                //点击在之前的选区上
+                if (!node) {
                     var selectionShape = e.kityEvent.targetShape;
-                    if(selectionShape && selectionShape.getType() == 'Selection'){
-                        selectionByClick = true;
-                        node = selectionShape.getData('relatedNode');
+                    if (selectionShape && selectionShape.getType() == 'Selection') {
+                        node = receiver.getMinderNode();
                         e.stopPropagationImmediately();
                     }
-                    if(this.getStatus() == 'textedit')
-                        this.fire('contentchange');
-                    km.setStatus('normal')
-                }
-                if(node){
-                    var textShape = node.getTextShape();
-                    textShape.setStyle('cursor','default');
 
-                    if ( this.isSingleSelect() && node.isSelected()) {// && e.kityEvent.targetShape.getType().toLowerCase()== 'text'
-                        sel.collapse();
-                        node.getTextShape().setStyle('cursor','text');
-                        km.setStatus('textedit');
-                        receiver.setTextEditStatus(true)
-                            .setSelection(sel)
-                            .setKityMinder(this)
-                            .setMinderNode(node)
-                            .setTextShape(textShape)
-                            .setBaseOffset()
-                            .setContainerStyle()
-                            .setSelectionHeight()
-                            .setCurrentIndex(e.getPosition())
-                            .updateSelection()
-                            .setRange(range);
-                        sel.setData('relatedNode',node);
-                        mouseDownStatus = true;
-                        lastEvtPosition = e.getPosition();
-                        if(selectionByClick){
-                            sel.setShow();
-                            selectionByClick = false;
+                }
+
+                if(node){
+
+                    if (this.isSingleSelect() && node.isSelected()) {
+                        lastMinderNode = node;
+
+                        mousedownNode = node;
+
+                        var textGroup = node.getTextGroup();
+
+
+                        sel.collapse(true);
+                        sel.setColor(node.getStyle('text-selection-color'));
+
+                        receiver
+                            .updateByMinderNode(node)
+                            .updateIndexByMouse(e.getPosition(node.getRenderContainer()))
+                            .setRange(range)
+                            .setReady();
+
+                        if(selectionReadyShow){
+
+
+                            sel.setShowStatus();
+                            clearTimeout(mousedownTimer);
+
+                            mousedownTimer = setTimeout(function() {
+                                if(dblclickEvent){
+                                    dblclickEvent = false;
+                                    return;
+                                }
+
+                                sel.collapse(true)
+                                    .updatePosition(receiver.getOffsetByIndex())
+                                    .setShow();
+                                textGroup.setStyle('cursor','text');
+
+                            },200);
+                            km.setStatus('textedit');
+
                         }
-                        km.setStatus('textedit')
+
+                        return;
+
+                    }
+                }
+                //模拟光标没有准备好
+                receiver.clearReady();
+                //当点击空白处时，光标需要消失
+                receiver.clear();
+
+
+                if(lastMinderNode){
+
+                    lastMinderNode.getTextGroup().setStyle('cursor','default');
+                }
+
+            },
+            'inputready.keyup':function(){
+                if(sel.isHide()){
+                    inputStatusReady(this.getSelectedNode());
+                }
+            },
+
+            //当节点选区通过键盘发生变化时，输入状态要准备好
+            'normal.keyup': function(e) {
+                var node = this.getSelectedNode();
+                var keyCode = e.getKeyCode();
+                if (node) {
+                    if (this.isSingleSelect() && node.isSelected() && !sel.isShow() ) {
+                        var orgEvt = e.originEvent;
+                        if (keymap.isSelectedNodeKey[keyCode] &&
+                            !orgEvt.ctrlKey &&
+                            !orgEvt.metaKey &&
+                            !orgEvt.shiftKey &&
+                            !orgEvt.altKey) {
+                                inputStatusReady(node);
+
+                        }
                     }
                 }
             },
-            'normal.mouseup textedit.mouseup':function(e){
-                if(mouseDownStatus){
-                    if(!sel.collapsed ){
-                        try{
-                            receiver.updateRange(range)
-                        }catch(e){
-                            console.log(e)
-                        }
-
-                    }else
-                       sel.setShow()
-                }
+            'normal.mouseup textedit.mouseup inputready.mouseup': function(e) {
 
                 mouseDownStatus = false;
-                oneTime = 0;
+
+                var node = e.getTargetNode();
+
+                mousedownNode = null;
+
+                if (node && !selectionReadyShow && receiver.isReady()) {
+
+                    sel.collapse(true);
+
+                    sel.setColor(node.getStyle('text-selection-color'));
+
+                    //必须再次focus，要不不能呼出键盘
+                    if(browser.ipad){
+                        receiver.focus();
+                    }
+                    clearTimeout(mouseupTimer);
+                    mouseupTimer = setTimeout(function() {
+                        if(dblclickEvent){
+                            dblclickEvent = false;
+                            return;
+                        }
+                        sel.collapse(true)
+                            .updatePosition(receiver.getOffsetByIndex())
+                            .setShow();
+                        node.getTextGroup().setStyle('cursor','text');
+                    }, 200);
+
+
+                    km.setStatus('textedit');
+
+                    return;
+                }
+                //当选中节点后，输入状态准备
+                if(sel.isHide()){
+                    inputStatusReady(e.getTargetNode());
+                }else {
+                    //当有光标时，要同步选区
+                    if(!sel.collapsed){
+                        receiver.updateContainerRangeBySel();
+                    }
+                }
+
+
+
+
             },
-            'textedit.beforemousemove':function(e){
-                if(mouseDownStatus){
+            'textedit.beforemousemove inputready.beforemousemove': function(e) {
+
+                if(browser.ipad){
+                    return;
+                }
+                //ipad下不做框选
+                if (mouseDownStatus && receiver.isReady() && selectionReadyShow) {
+
+
                     e.stopPropagationImmediately();
 
-                    var offset = e.getPosition();
+                    if(mousedownNode){
 
-                    if(Math.abs(offset.y - lastEvtPosition.y) > 2 && Math.abs(lastEvtPosition.x - offset.x) < 1 ){
-                        sel.setHide();
-                        mouseDownStatus = false;
-                        return;
+                        var offset = e.getPosition( mousedownNode.getRenderContainer());
+
+                        receiver
+                            .updateSelectionByMousePosition(offset)
+                            .updateSelection(offset);
+                        setTimeout(function(){
+                            receiver.updateContainerRangeBySel();
+                        });
+
+
                     }
-                    dir = offset.x > lastEvtPosition.x  ? 1 : (offset.x  < lastEvtPosition.x ? -1 : dir);
-                    receiver.updateSelectionByMousePosition(offset,dir)
-                        .updateSelectionShow(dir);
 
-                    lastEvtPosition = e.getPosition();
 
+                }else if(mouseDownStatus && !selectionReadyShow){
+                    //第一次点中，第二次再次点中进行拖拽
+                    km.setStatus('normal');
+                    receiver.clearReady();
                 }
             },
-            'normal.dblclick textedit.dblclick':function(e){
+            'normal.dblclick textedit.dblclick inputready.dblclick': function(e) {
 
-                var text =  e.kityEvent.targetShape;
-                if ( text.getType().toLowerCase()== 'text') {
+                var node = e.getTargetNode();
+                dblclickEvent = true;
+                if(node){
+                    //跟mouseup的timeout有冲突，这里做标记处理
 
-                    sel.setStartOffset(0);
-                    sel.setEndOffset(text.getContent().length);
-                    sel.setShow();
-                    receiver.setContainerTxt(text.getContent()).updateSelectionShow(1)
-                        .updateRange(range).setTextEditStatus(true);
+
+                    inputStatusReady(node);
+
                     km.setStatus('textedit');
+
+                    receiver.updateSelection();
+
                 }
+
             },
-            'restoreScene':function(){
-                sel.setHide();
+            'restoreScene': function() {
+                receiver.clear();
+                inputStatusReady(this.getSelectedNode());
             },
-            'stopTextEdit':function(){
-                sel.setHide();
-                receiver.clear().setTextEditStatus(false);
+            'stopTextEdit': function() {
+                receiver.clear();
                 km.setStatus('normal');
             },
-            "resize": function ( e ) {
+            'resize': function(e) {
                 sel.setHide();
             },
-            'execCommand':function(e){
+            'execCommand': function(e) {
                 var cmds = {
-                    'appendchildnode':1,
-                    'appendsiblingnode':1
+                    'appendchildnode': 1,
+                    'appendsiblingnode': 1,
+                    'editnode': 1
                 };
-                if(cmds[e.commandName]){
-
-                    var node = km.getSelectedNode();
-                    if( !node ){
-                        return;
-                    }
-
-                    var textShape = node.getTextShape();
-
-                    textShape.setStyle('cursor','default');
-                    node.getTextShape().setStyle('cursor','text');
-                    km.setStatus('textedit');
-                    receiver.setTextEditStatus(true)
-                        .setSelection(sel)
-                        .setKityMinder(this)
-                        .setMinderNode(node)
-                        .setTextShape(textShape)
-                        .setBaseOffset()
-                        .setContainerStyle()
-                        .setSelectionHeight()
-                        .getTextOffsetData()
-                        .setIndex(0)
-                        .updateSelection()
-                        .setRange(range);
-
-                    sel.setStartOffset(0);
-                    sel.setEndOffset(textShape.getContent().length);
-                    sel.setShow();
-
-                    receiver.updateSelectionShow(1)
-                        .updateRange(range);
+                if (cmds[e.commandName]) {
+                    inputStatusReady(km.getSelectedNode());
+                    receiver.updateSelection();
                     return;
 
                 }
 
-                if((e.commandName == 'priority' || e.commandName == 'progress') && this.getStatus() == 'textedit' ){
-
-                    receiver.setBaseOffset()
-                        .getTextOffsetData();
-
-                    if(sel.collapsed){
-                        receiver.updateSelection();
-                    }else{
-                        receiver.updateSelectionShow(1)
-                    }
-                    return;
-
-
-                }
-                receiver.clear().setTextEditStatus(false);
-                if(this.getStatus() == 'textedit'){
-                    this.setStatus('normal')
+                if(sel.isShow()){
+                    receiver.updateTextOffsetData().updateSelection();
                 }
             },
-            'selectionclear':function(){
+            'layoutfinish':function(e){
+                if (e.node === receiver.minderNode && (this.getStatus() == 'textedit' || this.getStatus() == 'inputready') ) {//&& selectionReadyShow
+                    receiver.setContainerStyle();
+                }
+            },
+            'selectionclear': function() {
+                var node = km.getSelectedNode();
+                if(node){
+                    inputStatusReady(node);
+                }else{
+                    km.setStatus('normal');
+                    receiver.clear();
+                }
+
+
+            },
+            'blur': function() {
+               !/\?debug#?/.test(location.href) && receiver.clear();
+            },
+            'textedit.import': function() {
                 km.setStatus('normal');
-                receiver.setTextEditStatus(false).clear()
+                receiver.clear();
             },
-            blur:function(){
-                receiver.clear()
+            'inputready.mousewheel textedit.mousewheel': function() {
+                receiver.setContainerStyle();
+            },
+            'statuschange':function(e){
+                if(e.lastStatus == 'textedit'){
+
+                    this.fire('contentchange');
+                }
             }
+
         }
     };
-} );
+});
